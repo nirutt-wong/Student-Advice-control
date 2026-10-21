@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายการลงคุมแถว</title>
+<style>
+  :root { --bg:#f4f6fa; --card:#fff; --ink:#1d2433; --mute:#667085; --line:#d9deea; --brand:#2456d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; line-height:1.5; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 14px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:end; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .bar div { display:flex; flex-direction:column; gap:4px; flex: 1 1 160px; }
+  .bar label { font-size:.85rem; color:var(--mute); font-weight:600; }
+  .bar input, .bar select { padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); width:100%; }
+  .bar button { padding:10px 16px; font:inherit; font-weight:700; color:#fff; background:var(--brand); border:0; border-radius:9px; cursor:pointer; flex: 0 0 auto; }
+  .bar button.ghost { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  #count { color:var(--mute); margin: 0 0 12px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .thumb { width:100%; aspect-ratio: 4/3; object-fit: cover; background:#e9edf5; cursor: zoom-in; display:block; }
+  .noimg { display:flex; align-items:center; justify-content:center; color:var(--mute); font-size:.9rem; aspect-ratio: 4/3; background:#e9edf5; }
+  .info { padding: 10px 12px 12px; }
+  .badge { display:inline-block; background:#eef2ff; color:var(--brand); font-weight:700; font-size:.85rem; padding:2px 10px; border-radius:99px; }
+  .teacher { margin: 6px 0 2px; font-weight:600; }
+  .date { color:var(--mute); font-size:.9rem; }
+  .empty { text-align:center; color:var(--mute); padding: 40px 0; }
+  #lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:10; cursor: zoom-out; padding:16px; }
+  #lightbox img { max-width:100%; max-height:100%; border-radius:8px; }
+  a.link { display:inline-block; margin-top: 18px; color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>รายการลงคุมแถว</h1>
+
+  <div class="bar">
+    <div>
+      <label for="fClass">ระดับชั้น</label>
+      <select id="fClass"><option value="">ทั้งหมด</option></select>
+    </div>
+    <div>
+      <label for="fDate">วันที่</label>
+      <input type="date" id="fDate">
+    </div>
+    <div>
+      <label for="fName">ค้นหาชื่อครู</label>
+      <input type="text" id="fName" placeholder="พิมพ์ชื่อ...">
+    </div>
+    <div>
+      <label for="fSort">เรียงตาม</label>
+      <select id="fSort">
+        <option value="class">ระดับชั้น (ม.1/1 → ม.6/15)</option>
+        <option value="date">วันที่ล่าสุดก่อน (แล้วตามห้อง)</option>
+      </select>
+    </div>
+    <button class="ghost" id="clearBtn" type="button">ล้างตัวกรอง</button>
+    <button id="reloadBtn" type="button">โหลดใหม่</button>
+  </div>
+
+  <p id="count">กำลังโหลด...</p>
+  <div class="grid" id="grid"></div>
+
+  <a class="link" href="form.html">← กลับไปหน้ากรอกข้อมูล</a>
+</div>
+
+<div id="lightbox"><img alt="รูปขยาย"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const LEVELS = { 1: 16, 2: 16, 3: 16, 4: 15, 5: 15, 6: 15 };
+  const LOAD_LIMIT = 300; // ดึงสูงสุดกี่รายการต่อครั้ง (ช่วยประหยัดโควตาการอ่าน)
+
+  const $ = (id) => document.getElementById(id);
+  const grid = $('grid'), count = $('count'), fClass = $('fClass'), fDate = $('fDate'), fName = $('fName'), fSort = $('fSort');
+  let records = [];
+
+  // ตัวเลือกกรองระดับชั้น
+  for (const [lv, rooms] of Object.entries(LEVELS)) {
+    const g = document.createElement('optgroup');
+    g.label = 'ม.' + lv;
+    for (let r = 1; r <= rooms; r++) {
+      const o = document.createElement('option');
+      o.value = o.textContent = `ม.${lv}/${r}`;
+      g.appendChild(o);
+    }
+    fClass.appendChild(g);
+  }
+
+  const ID_OK = /^[A-Za-z0-9_-]+$/;
+  const thumbUrl = (id, w) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w}`;
+
+  function thaiDate(iso) {
+    const [y, m, d] = String(iso).split('-').map(Number);
+    if (!y) return iso;
+    return new Date(y, m - 1, d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function levelKey(s) { // ใช้เรียง ม.1/2 ก่อน ม.1/10
+    const m = /ม\.(\d+)\/(\d+)/.exec(s || '');
+    return m ? Number(m[1]) * 100 + Number(m[2]) : 9999;
+  }
+
+  function makeCard(r) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    if (r.imageId && ID_OK.test(r.imageId)) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.loading = 'lazy';
+      img.alt = `รูปการลงคุมแถว ${r.classLevel || ''}`;
+      img.src = thumbUrl(r.imageId, 480);
+      img.addEventListener('click', () => openLightbox(thumbUrl(r.imageId, 1600)));
+      img.addEventListener('error', () => {
+        const ph = document.createElement('div');
+        ph.className = 'noimg';
+        ph.textContent = 'โหลดรูปไม่ได้';
+        img.replaceWith(ph);
+      });
+      card.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'noimg';
+      ph.textContent = 'ไม่มีรูป';
+      card.appendChild(ph);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = r.classLevel || '-';
+    const t = document.createElement('div');
+    t.className = 'teacher';
+    t.textContent = r.teacherName || '-';
+    const d = document.createElement('div');
+    d.className = 'date';
+    d.textContent = thaiDate(r.date);
+    info.append(badge, t, d);
+    card.appendChild(info);
+    return card;
+  }
+
+  function render() {
+    const lv = fClass.value, dt = fDate.value, q = fName.value.trim().toLowerCase();
+    const rows = records
+      .filter((r) => (!lv || r.classLevel === lv) && (!dt || r.date === dt) &&
+                     (!q || String(r.teacherName || '').toLowerCase().includes(q)))
+      .sort((a, b) => {
+        const byLevel = levelKey(a.classLevel) - levelKey(b.classLevel);
+        const byDateDesc = a.date === b.date ? 0 : (a.date < b.date ? 1 : -1);
+        // เรียงตามระดับชั้นก่อน (ชั้นเดียวกันให้วันที่ล่าสุดขึ้นก่อน) หรือเรียงตามวันที่ก่อน
+        return fSort.value === 'class' ? (byLevel || byDateDesc) : (byDateDesc || byLevel);
+      });
+
+    grid.replaceChildren(...rows.map(makeCard));
+    count.textContent = rows.length ? `แสดง ${rows.length} รายการ` : '';
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'ไม่พบข้อมูล';
+      grid.appendChild(e);
+    }
+  }
+
+  async function load() {
+    count.textContent = 'กำลังโหลด...';
+    try {
+      const snap = await db.collection(COLLECTION).orderBy('date', 'desc').limit(LOAD_LIMIT).get();
+      records = snap.docs.map((d) => d.data());
+      render();
+    } catch (err) {
+      console.error(err);
+      count.textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + err.message;
+    }
+  }
+
+  // Lightbox
+  const lb = $('lightbox'), lbImg = lb.querySelector('img');
+  function openLightbox(src) { lbImg.src = src; lb.style.display = 'flex'; }
+  lb.addEventListener('click', () => { lb.style.display = 'none'; lbImg.src = ''; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.click(); });
+
+  [fClass, fDate, fName, fSort].forEach((el) => el.addEventListener('input', render));
+  $('clearBtn').addEventListener('click', () => { fClass.value = ''; fDate.value = ''; fName.value = ''; render(); });
+  $('reloadBtn').addEventListener('click', load);
+
+  load();
+</script>
+</body>
+</html>
