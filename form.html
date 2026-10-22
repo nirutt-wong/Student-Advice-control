@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกการลงคุมแถว</title>
+<style>
+  :root { --bg:linear-gradient(160deg,#7fd6a0 0%,#c3ecd2 42%,#f3fbf6 100%); --card:#fff; --ink:#123524; --mute:#3d5c4b; --line:#c5e3d0; --brand:#17803f; --grad:linear-gradient(135deg,#157a3d,#2c9f5d); --ok:#177a43; --err:#c0392b; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg) fixed; color:var(--ink); font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; line-height:1.5; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 4px; }
+  p.sub { margin: 0 0 18px; color: var(--mute); }
+  form { background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 18px; }
+  label { display:block; font-weight:600; margin: 14px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=text], input[type=date], select {
+    width:100%; padding: 11px 12px; font: inherit; border:1px solid var(--line); border-radius: 10px; background:#fff; color: var(--ink);
+  }
+  input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  input[type=file] { width:100%; font: inherit; }
+  .hint { font-size: .85rem; color: var(--mute); margin-top: 4px; }
+  #preview { display:none; margin-top: 10px; max-width:100%; max-height: 280px; border-radius: 10px; border:1px solid var(--line); }
+  button { margin-top: 20px; width:100%; padding: 13px; font: inherit; font-weight:700; color:#fff; background: var(--grad); border:0; border-radius: 10px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor: wait; }
+  #status { margin-top: 14px; padding: 10px 12px; border-radius: 10px; display:none; font-size:.95rem; }
+  #status.ok { display:block; background:#e8f6ee; color:var(--ok); }
+  #status.err { display:block; background:#fdecea; color:var(--err); }
+  #status.info { display:block; background:#e1f5e8; color:var(--brand); }
+  a.link { display:inline-block; margin-top: 16px; color: #0f5c2e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>บันทึกการลงคุมแถว</h1>
+  <p class="sub">กรอกข้อมูลและแนบรูปภาพการลงคุมแถว</p>
+
+  <form id="f" novalidate>
+    <label for="teacher">ชื่อครูที่ปรึกษา</label>
+    <input type="text" id="teacher" maxlength="100" placeholder="เช่น นางสมศรี ใจดี" autocomplete="off" required>
+
+    <label for="classLevel">ระดับชั้น</label>
+    <select id="classLevel" required>
+      <option value="">— เลือกระดับชั้น —</option>
+    </select>
+
+    <label for="date">วันที่</label>
+    <input type="date" id="date" required>
+
+    <label for="photo">รูปภาพการลงคุมแถว</label>
+    <input type="file" id="photo" accept="image/*" required>
+    <div class="hint">ระบบจะย่อรูปให้ไม่เกิน 1 MB อัตโนมัติก่อนส่ง</div>
+    <img id="preview" alt="ตัวอย่างรูป">
+
+    <button type="submit" id="submitBtn">ส่งข้อมูล</button>
+    <div id="status" role="status"></div>
+  </form>
+
+  <a class="link" href="show.html">ดูรายการที่บันทึกแล้ว →</a>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const MAX_BYTES = 1 * 1024 * 1024; // ขนาดรูปสูงสุดที่ส่งไปบันทึก (1 MB)
+  const LEVELS = { 1: 16, 2: 16, 3: 16, 4: 15, 5: 15, 6: 15 }; // ม.1–ม.3 มี 16 ห้อง, ม.4–ม.6 มี 15 ห้อง
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('f'), teacher = $('teacher'), classLevel = $('classLevel'),
+        dateInput = $('date'), photo = $('photo'), preview = $('preview'),
+        statusBox = $('status'), submitBtn = $('submitBtn');
+
+  // สร้างตัวเลือกระดับชั้น
+  for (const [lv, rooms] of Object.entries(LEVELS)) {
+    const g = document.createElement('optgroup');
+    g.label = 'ม.' + lv;
+    for (let r = 1; r <= rooms; r++) {
+      const o = document.createElement('option');
+      o.value = o.textContent = `ม.${lv}/${r}`;
+      g.appendChild(o);
+    }
+    classLevel.appendChild(g);
+  }
+
+  // วันที่เริ่มต้น = วันนี้ (เวลาท้องถิ่นของเครื่อง)
+  function setToday() {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    dateInput.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  setToday();
+
+  function showStatus(type, msg) {
+    statusBox.className = type;
+    statusBox.textContent = msg;
+  }
+
+  // ตัวอย่างรูป
+  let previewUrl = null;
+  photo.addEventListener('change', () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const f = photo.files[0];
+    if (f && f.type.startsWith('image/')) {
+      previewUrl = URL.createObjectURL(f);
+      preview.src = previewUrl;
+      preview.style.display = 'block';
+    } else {
+      preview.removeAttribute('src');
+      preview.style.display = 'none';
+    }
+  });
+
+  // ---------- เตรียมรูป: ย่อเป็น JPEG ไม่เกิน 1 MB ทุกครั้งก่อนส่ง ----------
+  const bytesOfBase64 = (b64) =>
+    Math.floor(b64.length * 3 / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0);
+
+  // หาแหล่งภาพที่วาดลง canvas ได้ (ลองรูปตัวอย่างก่อน เพราะใช้ได้บนมือถือมากที่สุด)
+  async function getDrawable(file) {
+    if (preview.getAttribute('src') && preview.complete && preview.naturalWidth) return preview;
+    try { return await createImageBitmap(file); } catch (_) { /* ลองวิธีสำรอง */ }
+    return await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('เบราว์เซอร์อ่านรูปนี้ไม่ได้')); };
+      img.src = url;
+    });
+  }
+
+  // คืนค่า { base64, type, name } ของรูปที่ย่อแล้วและพร้อมส่ง
+  async function prepareImage(file) {
+    if (file.type && !file.type.startsWith('image/')) throw new Error('ไฟล์ที่แนบต้องเป็นรูปภาพ');
+
+    let src;
+    try {
+      src = await getDrawable(file);
+    } catch (e) {
+      throw new Error('อ่านรูปไม่สำเร็จ (' + ((e && (e.name + ': ' + e.message)) || 'error') + ') กรุณาเลือกรูปจากแกลเลอรีหรือถ่ายรูปใหม่ แล้วลองอีกครั้ง');
+    }
+
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    if (!sw || !sh) throw new Error('อ่านขนาดรูปไม่ได้ กรุณาเลือกรูปอื่น');
+
+    let scale = Math.min(1, 1600 / Math.max(sw, sh));
+    let quality = 0.8;
+    for (let i = 0; i < 10; i++) {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(sw * scale));
+      c.height = Math.max(1, Math.round(sh * scale));
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; // กัน PNG พื้นโปร่งใสกลายเป็นพื้นดำ
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(src, 0, 0, c.width, c.height);
+      const b64 = c.toDataURL('image/jpeg', quality).split(',')[1];
+      if (b64 && bytesOfBase64(b64) <= MAX_BYTES) {
+        return { base64: b64, type: 'image/jpeg', name: (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg' };
+      }
+      quality = Math.max(0.5, quality - 0.1);
+      scale *= 0.85;
+    }
+    throw new Error('ย่อรูปให้ไม่เกิน 1 MB ไม่สำเร็จ กรุณาเลือกรูปอื่น');
+  }
+
+  // ส่งรูปไป Apps Script -> ได้ fileId ของ Google Drive
+  async function uploadToDrive(img) {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // เลี่ยง CORS preflight
+      body: JSON.stringify({ base64: img.base64, type: img.type, name: img.name })
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error('อัปโหลดรูปไม่สำเร็จ: ' + (data.error || 'unknown'));
+    return data.id;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = teacher.value.trim();
+    const level = classLevel.value;
+    const date = dateInput.value;
+    const file = photo.files[0];
+
+    if (!name) return showStatus('err', 'กรุณากรอกชื่อครูที่ปรึกษา');
+    if (!level) return showStatus('err', 'กรุณาเลือกระดับชั้น');
+    if (!date) return showStatus('err', 'กรุณาเลือกวันที่');
+    if (!file) return showStatus('err', 'กรุณาแนบรูปภาพการลงคุมแถว');
+
+    submitBtn.disabled = true;
+    try {
+      showStatus('info', 'กำลังเตรียมรูปภาพ...');
+      const ready = await prepareImage(file);
+
+      showStatus('info', 'กำลังอัปโหลดรูป...');
+      const imageId = await uploadToDrive(ready);
+
+      showStatus('info', 'กำลังบันทึกข้อมูล...');
+      await db.collection(COLLECTION).add({
+        teacherName: name,
+        classLevel: level,
+        date: date, // รูปแบบ YYYY-MM-DD
+        imageId: imageId,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showStatus('ok', 'บันทึกเรียบร้อยแล้ว ขอบคุณครับ/ค่ะ');
+      form.reset();
+      setToday();
+      preview.removeAttribute('src');
+      preview.style.display = 'none';
+    } catch (err) {
+      console.error(err);
+      showStatus('err', err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
