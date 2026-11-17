@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายการลงคุมแถว</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fff; --card:#fff; --ink:#123524; --mute:#3d5c4b; --line:#c5e3d0; --brand:#17803f; --grad:linear-gradient(135deg,#157a3d,#2c9f5d); }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg) fixed; color:var(--ink); font-family: "Sarabun","Noto Sans Thai",Tahoma,sans-serif; line-height:1.5; }
+  input, select, button, textarea { font-family: inherit; }
+  /* ช่องวันที่แสดงเป็น พ.ศ. (ช่องจริงโปร่งใสซ้อนทับอยู่ ใช้เปิดปฏิทิน) */
+  .dwrap { position:relative; width:100%; }
+  .bar .dwrap, .sum-head .dwrap { display:block; flex:0 0 auto; }
+  .dwrap .dpop { display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:30; width:290px; max-width:calc(100vw - 32px); background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.18); padding:10px; color:var(--ink); }
+  .dwrap .dpop.open { display:block; }
+  .dwrap .dp-head { display:flex; align-items:center; gap:4px; margin-bottom:8px; }
+  .dwrap .dp-title { flex:1; text-align:center; font-weight:700; }
+  .dwrap .dp-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; }
+  .dwrap .dp-dow { font-size:.8rem; color:var(--mute); font-weight:600; padding:4px 0; }
+  .dwrap .dpop button { margin:0; width:auto; padding:0; font:inherit; border:0; background:none; color:var(--ink); cursor:pointer; border-radius:8px; opacity:1; }
+  .dwrap .dp-head button { width:32px; height:32px; font-weight:700; color:var(--brand); font-size:1.1rem; }
+  .dwrap .dp-grid button { height:34px; }
+  .dwrap .dp-grid button:hover { background:#e1f5e8; }
+  .dwrap .dp-grid button.today { outline:1.5px solid var(--brand); outline-offset:-1.5px; }
+  .dwrap .dp-grid button.sel { background:var(--grad); color:#fff; font-weight:700; }
+  .dwrap .dp-foot { display:flex; justify-content:center; margin-top:8px; }
+  .dwrap .dp-foot button { padding:6px 16px; color:var(--brand); font-weight:700; border:1px solid var(--brand); }
+  .dwrap .dshow { cursor:pointer; }
+  .dwrap:focus-within .dshow { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .school-bar, .head-bar { text-align:center; color: var(--ink); background: linear-gradient(90deg,#4cc16f 0%,#a9dc4f 50%,#ffe14d 100%); border-radius: 12px; }
+  .school-bar { margin-top: 24px; padding: 14px 12px; font-weight:700; font-size:1.1rem; letter-spacing:.02em; }
+  .head-bar { margin: 8px 0 18px; padding: 14px 12px; }
+  .head-bar h1 { margin: 0; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 14px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:end; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .bar div { display:flex; flex-direction:column; gap:4px; flex: 1 1 160px; }
+  .bar label { font-size:.85rem; color:var(--mute); font-weight:600; }
+  .bar input, .bar select { padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); width:100%; }
+  .bar button { padding:10px 16px; font:inherit; font-weight:700; color:#fff; background:var(--grad); border:0; border-radius:9px; cursor:pointer; flex: 0 0 auto; }
+  .bar button.ghost { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  #count { color:var(--mute); margin: 0 0 12px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .thumb { width:100%; aspect-ratio: 4/3; object-fit: cover; background:#dff3e6; cursor: zoom-in; display:block; }
+  .noimg { display:flex; align-items:center; justify-content:center; color:var(--mute); font-size:.9rem; aspect-ratio: 4/3; background:#dff3e6; }
+  .info { padding: 10px 12px 12px; }
+  .badge { display:inline-block; background:#e1f5e8; color:var(--brand); font-weight:700; font-size:.85rem; padding:2px 10px; border-radius:99px; }
+  .teacher { margin: 6px 0 2px; font-weight:600; }
+  .date { color:var(--mute); font-size:.9rem; }
+  .empty { text-align:center; color:var(--mute); padding: 40px 0; }
+  #lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:10; cursor: zoom-out; padding:16px; }
+  #lightbox img { max-width:100%; max-height:100%; border-radius:8px; }
+  a.link { display:inline-block; margin-top: 18px; color: #0f5c2e; }
+  .sum { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .sum-head { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+  .sum-head h2 { font-size:1.05rem; margin:0; flex:1 1 100%; }
+  .sum-head div { display:flex; flex-direction:column; gap:4px; flex:1 1 160px; }
+  .sum-head label { font-size:.85rem; color:var(--mute); font-weight:600; }
+  .sum-head input { padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); width:100%; }
+  .sum-head button { padding:10px 16px; font:inherit; font-weight:700; color:var(--brand); background:#fff; border:1px solid var(--brand); border-radius:9px; cursor:pointer; flex:0 0 auto; }
+  #sumStat { margin:12px 0 8px; font-weight:600; }
+  #sumStat .ok { color:#177a43; }
+  #sumStat .miss { color:#c0392b; }
+  .bar-prog { height:8px; background:#e1f5e8; border-radius:99px; overflow:hidden; margin-bottom:12px; }
+  .bar-prog span { display:block; height:100%; background:var(--grad); width:0; transition:width .3s; }
+  .lvrow { display:flex; gap:8px; align-items:center; margin:8px 0; }
+  .lvrow b { flex:0 0 38px; color:var(--mute); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  /* วงกลมเลขห้อง: เขียว = ส่งแล้ว, แดง = ยังไม่ส่ง, ตัวเลขสีขาว */
+  .chip { width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; font-size:.85rem; font-weight:700; line-height:1; }
+  .chip.sent { background:#1e9e4f; }
+  .chip.miss { background:#d63a2f; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin:0 0 8px; font-size:.85rem; color:var(--mute); }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+
+  /* วันที่นอกช่วงที่เลือกได้ในปฏิทิน */
+  .dwrap .dp-grid button:disabled { color:#b9c7be; cursor:not-allowed; }
+  .dwrap .dp-grid button:disabled:hover { background:none; }
+
+  /* ---------- ผู้ดูแลระบบ ---------- */
+  .btn-main { color:#fff; background:var(--grad); border:0; }
+  .btn-ghost { color:var(--brand); background:#fff; border:1px solid var(--brand); }
+  .admin-area { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; margin-top:24px; }
+  .admin-area button { padding:10px 18px; font:inherit; font-weight:700; border-radius:10px; cursor:pointer; }
+  .admin-who { width:100%; text-align:center; font-size:.85rem; color:var(--mute); }
+  .del-btn { margin-top:8px; width:100%; padding:7px 10px; font:inherit; font-weight:700; color:#c0392b; background:#fff; border:1px solid #c0392b; border-radius:8px; cursor:pointer; }
+  .del-btn:hover { background:#fdecea; }
+  .del-btn:disabled { opacity:.6; cursor:wait; }
+
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .modal.open { display:flex; }
+  .modal-box { background:#fff; border-radius:14px; padding:18px; width:100%; max-width:380px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  .modal-box h3 { margin:0 0 6px; font-size:1.15rem; }
+  .modal-box label { display:block; font-size:.9rem; font-weight:600; margin:12px 0 6px; color:var(--mute); }
+  .modal-box input[type=text], .modal-box input[type=password] { width:100%; padding:10px 12px; font:inherit; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  .modal-box input:focus { outline:2px solid var(--brand); outline-offset:1px; }
+  .modal-box .hint { font-size:.85rem; color:var(--mute); margin-top:6px; }
+  .modal-msg { margin-top:10px; font-size:.9rem; color:#c0392b; min-height:1.3em; }
+  .modal-msg.info { color:var(--mute); }
+  .modal-actions { display:flex; gap:10px; margin-top:12px; }
+  .modal-actions button { flex:1; padding:11px; font:inherit; font-weight:700; border-radius:10px; cursor:pointer; }
+  .modal-actions button:disabled, .rbar button:disabled { opacity:.6; cursor:wait; }
+
+  /* ---------- หน้ารายงาน (พิมพ์ / บันทึกเป็น PDF) ---------- */
+  #reportView { position:fixed; inset:0; background:#fff; z-index:60; overflow:auto; display:none; }
+  #reportView.open { display:block; }
+  .rbar { position:sticky; top:0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; padding:10px; background:#f3fbf6; border-bottom:1px solid var(--line); }
+  .rbar button { padding:9px 16px; font:inherit; font-weight:700; border-radius:10px; cursor:pointer; }
+  .rnote { flex:1 1 100%; text-align:center; font-size:.8rem; color:var(--mute); }
+  .rpage { max-width:820px; margin:0 auto; padding:20px 16px 40px; color:#000; }
+  .rhead { text-align:center; }
+  .rhead h2 { margin:0 0 2px; font-size:1.3rem; }
+  .rhead p { margin:2px 0; }
+  .rsum { margin:12px 0 4px; padding:8px 12px; border:1px solid #888; border-radius:6px; text-align:center; font-weight:700; }
+  .rlevel { margin-top:14px; break-inside:avoid; page-break-inside:avoid; }
+  .rlevel h3 { margin:0 0 4px; font-size:1rem; }
+  table.rt { width:100%; border-collapse:collapse; font-size:.9rem; }
+  .rt th, .rt td { border:1px solid #888; padding:3px 8px; text-align:left; }
+  .rt th { background:#e1f5e8; text-align:center; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .rt td.c { text-align:center; }
+  .rt td.miss-list { font-size:.8rem; color:#c0392b; }
+  .rnoteline { margin:6px 0 0; font-size:.8rem; color:#444; text-align:center; }
+  .st-ok { color:#177a43; font-weight:700; }
+  .st-miss { color:#c0392b; font-weight:700; }
+  .rfoot { margin-top:14px; font-size:.8rem; color:#444; text-align:right; }
+  @media print {
+    @page { size:A4; margin:12mm; }
+    body.rv-open > *:not(#reportView) { display:none !important; }
+    body.rv-open #reportView { position:static; overflow:visible; display:block; }
+    body.rv-open .rbar { display:none !important; }
+    body.rv-open .rpage { max-width:none; padding:0; }
+    body.rv-open table.rt { font-size:11pt; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head-bar"><h1>รายการลงคุมแถว</h1></div>
+
+  <div class="bar">
+    <div>
+      <label for="fClass">ระดับชั้น</label>
+      <select id="fClass"><option value="">ทั้งหมด</option></select>
+    </div>
+    <div>
+      <label for="fDate">วันที่</label>
+      <input type="date" id="fDate">
+    </div>
+    <div>
+      <label for="fName">ค้นหาชื่อครู</label>
+      <input type="text" id="fName" placeholder="พิมพ์ชื่อ...">
+    </div>
+    <div>
+      <label for="fSort">เรียงตาม</label>
+      <select id="fSort">
+        <option value="class">ระดับชั้น (ม.1/1 → ม.6/16)</option>
+        <option value="date">วันที่ล่าสุดก่อน (แล้วตามห้อง)</option>
+      </select>
+    </div>
+    <button class="ghost" id="clearBtn" type="button">ล้างตัวกรอง</button>
+    <button id="reloadBtn" type="button">โหลดใหม่</button>
+  </div>
+
+  <div class="sum">
+    <div class="sum-head">
+      <h2>สรุปห้องที่ยังไม่ส่ง</h2>
+      <div>
+        <label for="sDate">เลือกวันที่ตรวจสอบ</label>
+        <input type="date" id="sDate">
+      </div>
+      <button id="sCopy" type="button">คัดลอกรายชื่อห้องที่ยังไม่ส่ง</button>
+    </div>
+    <div id="sumStat">กำลังโหลด...</div>
+    <div class="bar-prog"><span id="sumBar"></span></div>
+    <div class="legend">
+      <span><i style="background:#1e9e4f"></i>ส่งแล้ว</span>
+      <span><i style="background:#d63a2f"></i>ยังไม่ส่ง</span>
+    </div>
+    <div id="sumList"></div>
+  </div>
+
+  <p id="count">กำลังโหลด...</p>
+  <div class="grid" id="grid"></div>
+
+  <a class="link" href="form.html">← กลับไปหน้ากรอกข้อมูล</a>
+
+  <div class="admin-area">
+    <span class="admin-who" id="adminWho" hidden></span>
+    <button type="button" class="btn-main" id="adminLoginBtn">เข้าสู่ระบบผู้ดูแล</button>
+    <button type="button" class="btn-main" id="reportBtn" hidden>แสดงรายงานการลงคุมแถว</button>
+    <button type="button" class="btn-ghost" id="logoutBtn" hidden>ออกจากระบบ</button>
+  </div>
+
+  <div class="school-bar">โรงเรียนสระแก้ว</div>
+</div>
+
+<div id="lightbox"><img alt="รูปขยาย"></div>
+
+<!-- pop up เข้าสู่ระบบผู้ดูแล -->
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <form class="modal-box" id="loginForm" novalidate>
+    <h3 id="loginTitle">เข้าสู่ระบบผู้ดูแล</h3>
+    <label for="lgUser">ชื่อผู้ใช้</label>
+    <input type="text" id="lgUser" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="lgPass">รหัสผ่าน</label>
+    <input type="password" id="lgPass" autocomplete="current-password">
+    <div class="modal-msg" id="lgMsg" role="alert"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="lgCancel">ยกเลิก</button>
+      <button type="submit" class="btn-main" id="lgSubmit">เข้าสู่ระบบ</button>
+    </div>
+  </form>
+</div>
+
+<!-- pop up เลือกวันที่ของรายงาน -->
+<div class="modal" id="dateModal" role="dialog" aria-modal="true" aria-labelledby="dateTitle">
+  <div class="modal-box">
+    <h3 id="dateTitle">เลือกวันที่ของรายงาน</h3>
+    <label for="rFrom">เริ่มจากวันที่</label>
+    <input type="date" id="rFrom">
+    <label for="rTo">ถึงวันที่</label>
+    <input type="date" id="rTo">
+    <div class="hint" id="rHint"></div>
+    <div class="modal-msg" id="rMsg" role="alert"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="rCancel">ยกเลิก</button>
+      <button type="button" class="btn-main" id="rGo">แสดงรายงาน</button>
+    </div>
+  </div>
+</div>
+
+<!-- หน้ารายงาน (ไม่มีรูป) พิมพ์หรือบันทึกเป็น PDF ได้ -->
+<div id="reportView" role="dialog" aria-label="รายงานการลงคุมแถว">
+  <div class="rbar">
+    <button type="button" class="btn-main" id="rPrint">พิมพ์</button>
+    <button type="button" class="btn-main" id="rPdf">บันทึกเป็น PDF</button>
+    <button type="button" class="btn-ghost" id="rClose">ปิด</button>
+    <div class="rnote">การบันทึกเป็น PDF: กดปุ่มแล้วเลือกปลายทางเป็น “บันทึกเป็น PDF” (Save as PDF) ในหน้าต่างพิมพ์</div>
+  </div>
+  <div class="rpage" id="rPage"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script>
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const LEVELS = { 1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 16 }; // ทุกระดับชั้นมี 16 ห้อง (ตรงกับหน้า form)
+  const LOAD_LIMIT = 300; // ดึงสูงสุดกี่รายการต่อครั้ง (ช่วยประหยัดโควตาการอ่าน)
+
+  const $ = (id) => document.getElementById(id);
+  const grid = $('grid'), count = $('count'), fClass = $('fClass'), fDate = $('fDate'), fName = $('fName'), fSort = $('fSort');
+  // แสดงช่องวันที่เป็น วว/ดด/พ.ศ. (ค่าจริงยังเป็น YYYY-MM-DD ค.ศ. เหมือนเดิม)
+  // opts.min / opts.max (YYYY-MM-DD) ใช้จำกัดช่วงวันที่ที่เลือกได้ในปฏิทิน (ไม่ใส่ = เลือกได้ทุกวัน)
+  function buddhistDate(input, opts) {
+    opts = opts || {};
+    const wrap = document.createElement('div'); wrap.className = 'dwrap';
+    const show = document.createElement('input');
+    show.type = 'text'; show.readOnly = true; show.className = 'dshow'; show.autocomplete = 'off';
+    show.placeholder = 'วว/ดด/ปปปป (พ.ศ.)'; show.setAttribute('aria-label', 'วันที่ (พ.ศ.)');
+    input.before(wrap); wrap.append(show, input);
+    const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    const upd = () => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(desc.get.call(input));
+      show.value = m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : '';
+    };
+    Object.defineProperty(input, 'value', { get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); upd(); } });
+    input.type = 'hidden'; // ช่องจริงเก็บค่า YYYY-MM-DD ส่วนการเลือกวันใช้ปฏิทิน พ.ศ. ด้านล่าง
+    input.addEventListener('change', upd);
+
+    const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    const p2 = (n) => String(n).padStart(2, '0');
+    const parse = () => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(desc.get.call(input));
+      return m ? { y: +m[1], m: +m[2] - 1, d: +m[3] } : null;
+    };
+    const pop = document.createElement('div');
+    pop.className = 'dpop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'เลือกวันที่');
+    wrap.append(pop);
+    let vy = 0, vm = 0; // ปี (ค.ศ.) และเดือนที่กำลังดูในปฏิทิน
+
+    function close() { pop.classList.remove('open'); }
+    function choose(y, m, d) {
+      desc.set.call(input, `${y}-${p2(m + 1)}-${p2(d)}`);
+      upd();
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      close();
+    }
+    function btn(text, label, fn, cls) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = text;
+      if (label) b.setAttribute('aria-label', label);
+      if (cls) b.className = cls;
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      return b;
+    }
+    function draw() {
+      const sel = parse(), now = new Date();
+      const first = new Date(vy, vm, 1).getDay(), days = new Date(vy, vm + 1, 0).getDate();
+      const head = document.createElement('span'); head.className = 'dp-head';
+      const title = document.createElement('span'); title.className = 'dp-title';
+      title.textContent = `${MONTHS[vm]} ${vy + 543}`;
+      head.append(
+        btn('«', 'ปีก่อนหน้า', () => { vy--; draw(); }),
+        btn('‹', 'เดือนก่อนหน้า', () => { if (--vm < 0) { vm = 11; vy--; } draw(); }),
+        title,
+        btn('›', 'เดือนถัดไป', () => { if (++vm > 11) { vm = 0; vy++; } draw(); }),
+        btn('»', 'ปีถัดไป', () => { vy++; draw(); })
+      );
+      const grid = document.createElement('span'); grid.className = 'dp-grid';
+      DOW.forEach((w) => { const s = document.createElement('span'); s.className = 'dp-dow'; s.textContent = w; grid.append(s); });
+      for (let i = 0; i < first; i++) grid.append(document.createElement('span'));
+      for (let d = 1; d <= days; d++) {
+        const cls = [
+          sel && sel.y === vy && sel.m === vm && sel.d === d ? 'sel' : '',
+          now.getFullYear() === vy && now.getMonth() === vm && now.getDate() === d ? 'today' : ''
+        ].join(' ').trim();
+        const iso = `${vy}-${p2(vm + 1)}-${p2(d)}`;
+        const b = btn(String(d), '', () => choose(vy, vm, d), cls);
+        if ((opts.min && iso < opts.min) || (opts.max && iso > opts.max)) b.disabled = true;
+        grid.append(b);
+      }
+      const foot = document.createElement('span'); foot.className = 'dp-foot';
+      foot.append(btn('วันนี้', '', () => choose(now.getFullYear(), now.getMonth(), now.getDate())));
+      pop.replaceChildren(head, grid, foot);
+    }
+    function open() {
+      const s = parse() || { y: new Date().getFullYear(), m: new Date().getMonth() };
+      vy = s.y; vm = s.m;
+      draw();
+      pop.style.left = '0'; pop.style.right = 'auto';
+      pop.classList.add('open');
+      if (pop.getBoundingClientRect().right > window.innerWidth - 8) { pop.style.left = 'auto'; pop.style.right = '0'; }
+    }
+    show.addEventListener('click', () => (pop.classList.contains('open') ? close() : open()));
+    show.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+    document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    upd();
+  }
+  buddhistDate(fDate);
+
+  let records = [];
+  let isAdmin = false; // true เมื่อเข้าสู่ระบบผู้ดูแลแล้ว (การลบจริงถูกควบคุมโดย Firestore Rules อีกชั้น)
+
+  // วันที่ปัจจุบัน (เวลาท้องถิ่นของเครื่อง) รูปแบบ YYYY-MM-DD
+  function todayStr() {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  fDate.value = todayStr(); // ค่าเริ่มต้น = วันนี้
+
+  // ตัวเลือกกรองระดับชั้น
+  for (const [lv, rooms] of Object.entries(LEVELS)) {
+    const g = document.createElement('optgroup');
+    g.label = 'ม.' + lv;
+    for (let r = 1; r <= rooms; r++) {
+      const o = document.createElement('option');
+      o.value = o.textContent = `ม.${lv}/${r}`;
+      g.appendChild(o);
+    }
+    fClass.appendChild(g);
+  }
+
+  const ID_OK = /^[A-Za-z0-9_-]+$/;
+  const thumbUrl = (id, w) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w}`;
+
+  function thaiDate(iso) {
+    const [y, m, d] = String(iso).split('-').map(Number);
+    if (!y) return iso;
+    return new Date(y, m - 1, d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function levelKey(s) { // ใช้เรียง ม.1/2 ก่อน ม.1/10
+    const m = /ม\.(\d+)\/(\d+)/.exec(s || '');
+    return m ? Number(m[1]) * 100 + Number(m[2]) : 9999;
+  }
+
+  function makeCard(r) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    if (r.imageId && ID_OK.test(r.imageId)) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.loading = 'lazy';
+      img.alt = `รูปการลงคุมแถว ${r.classLevel || ''}`;
+      img.src = thumbUrl(r.imageId, 480);
+      img.addEventListener('click', () => openLightbox(thumbUrl(r.imageId, 1600)));
+      img.addEventListener('error', () => {
+        const ph = document.createElement('div');
+        ph.className = 'noimg';
+        ph.textContent = 'โหลดรูปไม่ได้';
+        img.replaceWith(ph);
+      });
+      card.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'noimg';
+      ph.textContent = 'ไม่มีรูป';
+      card.appendChild(ph);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = r.classLevel || '-';
+    const t = document.createElement('div');
+    t.className = 'teacher';
+    t.textContent = r.teacherName || '-';
+    const d = document.createElement('div');
+    d.className = 'date';
+    d.textContent = thaiDate(r.date);
+    info.append(badge, t, d);
+    if (isAdmin && r._id) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'del-btn';
+      del.textContent = 'ลบรายการนี้';
+      del.addEventListener('click', () => deleteRecord(r, del));
+      info.appendChild(del);
+    }
+    card.appendChild(info);
+    return card;
+  }
+
+  function render() {
+    const lv = fClass.value, q = fName.value.trim().toLowerCase();
+    // records ถูกดึงมาเฉพาะวันที่ที่เลือกอยู่แล้ว (ดู load)
+    const rows = records
+      .filter((r) => (!lv || r.classLevel === lv) &&
+                     (!q || String(r.teacherName || '').toLowerCase().includes(q)))
+      .sort((a, b) => {
+        const byLevel = levelKey(a.classLevel) - levelKey(b.classLevel);
+        const byDateDesc = a.date === b.date ? 0 : (a.date < b.date ? 1 : -1);
+        // เรียงตามระดับชั้นก่อน (ชั้นเดียวกันให้วันที่ล่าสุดขึ้นก่อน) หรือเรียงตามวันที่ก่อน
+        return fSort.value === 'class' ? (byLevel || byDateDesc) : (byDateDesc || byLevel);
+      });
+
+    grid.replaceChildren(...rows.map(makeCard));
+    count.textContent = rows.length ? `แสดง ${rows.length} รายการ` : '';
+    if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = records.length ? 'ไม่พบข้อมูลตามตัวกรอง' : 'ยังไม่มีห้องเรียนส่งข้อมูล';
+      grid.appendChild(e);
+    }
+  }
+
+  async function load() {
+    if (!fDate.value) fDate.value = todayStr(); // ไม่ได้เลือกวันที่ → ใช้วันปัจจุบัน
+    const dt = fDate.value;
+    count.textContent = 'กำลังโหลด...';
+    try {
+      // ดึงเฉพาะรายการของวันที่ที่เลือก
+      const snap = await db.collection(COLLECTION).where('date', '==', dt).limit(LOAD_LIMIT).get();
+      if (dt !== fDate.value) return; // ผู้ใช้เปลี่ยนวันที่ระหว่างโหลด
+      records = snap.docs.map((d) => ({ ...d.data(), _id: d.id }));
+      render();
+    } catch (err) {
+      console.error(err);
+      count.textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + err.message;
+    }
+  }
+
+  // Lightbox
+  const lb = $('lightbox'), lbImg = lb.querySelector('img');
+  function openLightbox(src) { lbImg.src = src; lb.style.display = 'flex'; }
+  lb.addEventListener('click', () => { lb.style.display = 'none'; lbImg.src = ''; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.click(); });
+
+  [fClass, fName, fSort].forEach((el) => el.addEventListener('input', render));
+  $('clearBtn').addEventListener('click', () => {
+    const changed = fDate.value !== todayStr();
+    fClass.value = ''; fName.value = ''; fDate.value = todayStr();
+    if (changed) { syncDate(fDate.value); } else render();
+  });
+  $('reloadBtn').addEventListener('click', () => { load(); loadSummary(); });
+
+  // ---------- สรุปห้องที่ยังไม่ส่ง (ตามวันที่ที่เลือก) ----------
+  const sDate = $('sDate'), sumStat = $('sumStat'), sumBar = $('sumBar'), sumList = $('sumList');
+  let missingRooms = [];
+  buddhistDate(sDate);
+
+  (function () {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    sDate.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  })();
+
+  async function loadSummary() {
+    const dt = sDate.value;
+    if (!dt) { sumStat.textContent = 'กรุณาเลือกวันที่'; sumList.replaceChildren(); sumBar.style.width = '0'; return; }
+    sumStat.textContent = 'กำลังตรวจสอบ...';
+    try {
+      // ดึงเฉพาะรายการของวันที่ที่เลือก เพื่อให้ผลสรุปครบถ้วนแม่นยำ
+      const snap = await db.collection(COLLECTION).where('date', '==', dt).get();
+      const sent = new Set(snap.docs.map((d) => d.data().classLevel));
+      let total = 0, done = 0;
+      missingRooms = [];
+      const rows = [];
+      for (const [lv, rooms] of Object.entries(LEVELS)) {
+        const row = document.createElement('div');
+        row.className = 'lvrow';
+        const b = document.createElement('b');
+        b.textContent = 'ม.' + lv;
+        const chips = document.createElement('div');
+        chips.className = 'chips';
+        for (let r = 1; r <= rooms; r++) {
+          const key = `ม.${lv}/${r}`;
+          total++;
+          const isSent = sent.has(key);
+          if (isSent) done++; else missingRooms.push(key);
+          const c = document.createElement('span');
+          c.className = 'chip ' + (isSent ? 'sent' : 'miss');
+          c.textContent = r; // แสดงเฉพาะเลขห้อง
+          c.title = `${key} — ${isSent ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}`;
+          chips.appendChild(c);
+        }
+        row.append(b, chips);
+        rows.push(row);
+      }
+      sumStat.innerHTML = '';
+      const a = document.createElement('span'); a.className = 'ok'; a.textContent = `ส่งแล้ว ${done}/${total} ห้อง`;
+      const m = document.createElement('span'); m.className = 'miss'; m.textContent = `ยังไม่ส่ง ${total - done} ห้อง`;
+      sumStat.append(a, document.createTextNode('  |  '), m, document.createTextNode(`  (${thaiDate(dt)})`));
+      sumBar.style.width = (total ? done / total * 100 : 0) + '%';
+      sumList.replaceChildren(...rows);
+    } catch (err) {
+      console.error(err);
+      sumStat.textContent = 'ตรวจสอบไม่สำเร็จ: ' + err.message;
+    }
+  }
+
+  // วันที่ในตัวกรองกับในส่วนสรุปใช้วันเดียวกัน: เปลี่ยนช่องไหน อีกช่องและทั้งรูป/สรุปจะตามไปด้วย
+  function syncDate(dt) {
+    dt = dt || todayStr();
+    fDate.value = dt;
+    sDate.value = dt;
+    load();
+    loadSummary();
+  }
+  fDate.addEventListener('change', () => syncDate(fDate.value));
+  sDate.addEventListener('change', () => syncDate(sDate.value));
+
+  $('sCopy').addEventListener('click', async () => {
+    const btn = $('sCopy');
+    const text = missingRooms.length
+      ? `ห้องที่ยังไม่ส่งการลงคุมแถว วันที่ ${thaiDate(sDate.value)} (${missingRooms.length} ห้อง)\n` +
+        Object.keys(LEVELS).map((lv) => {
+          const rs = missingRooms.filter((k) => k.startsWith(`ม.${lv}/`)).map((k) => k.split('/')[1]);
+          return rs.length ? `ม.${lv}: ห้อง ${rs.join(', ')}` : null;
+        }).filter(Boolean).join('\n')
+      : `วันที่ ${thaiDate(sDate.value)} ส่งครบทุกห้องแล้ว`;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (_) {}
+      ta.remove();
+    }
+    const old = btn.textContent;
+    btn.textContent = ok ? 'คัดลอกแล้ว ✓' : 'คัดลอกไม่สำเร็จ';
+    setTimeout(() => { btn.textContent = old; }, 1800);
+  });
+
+  // ================= ผู้ดูแลระบบ (Firebase Authentication) + รายงานการลงคุมแถว =================
+  const auth = firebase.auth();
+  // ถ้าพิมพ์ชื่อผู้ใช้โดยไม่มี @ ระบบจะต่อท้ายด้วยโดเมนนี้ให้ (ต้องตรงกับอีเมลที่สร้างไว้ใน Firebase)
+  const ADMIN_DOMAIN = 'sakaeo.example.com';
+  const baseTitle = document.title;
+
+  const adminLoginBtn = $('adminLoginBtn'), reportBtn = $('reportBtn'), logoutBtn = $('logoutBtn'), adminWho = $('adminWho');
+  const loginModal = $('loginModal'), loginForm = $('loginForm'), lgUser = $('lgUser'), lgPass = $('lgPass'),
+        lgMsg = $('lgMsg'), lgSubmit = $('lgSubmit');
+  const dateModal = $('dateModal'), rFrom = $('rFrom'), rTo = $('rTo'), rHint = $('rHint'), rMsg = $('rMsg'), rGo = $('rGo');
+  const rView = $('reportView'), rPage = $('rPage');
+  const rLimit = { min: '', max: '' };
+  // ปฏิทินเลือกช่วงวันที่ของรายงาน (จำกัดช่วงตาม rLimit)
+  buddhistDate(rFrom, rLimit);
+  buddhistDate(rTo, rLimit);
+  // ให้วันที่เริ่มต้นไม่เกินวันที่สิ้นสุดเสมอ
+  rFrom.addEventListener('change', () => { if (rTo.value && rFrom.value > rTo.value) rTo.value = rFrom.value; });
+  rTo.addEventListener('change', () => { if (rFrom.value && rTo.value < rFrom.value) rFrom.value = rTo.value; });
+
+  const openModal = (m) => m.classList.add('open');
+  const closeModal = (m) => m.classList.remove('open');
+  const mk = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // สลับปุ่มตามสถานะการเข้าสู่ระบบ
+  auth.onAuthStateChanged((u) => {
+    const on = !!u;
+    isAdmin = on;
+    if (records.length) render(); // แสดง/ซ่อนปุ่มลบในการ์ด (ถ้ายังโหลดไม่เสร็จ load() จะ render เอง)
+    adminLoginBtn.hidden = on;
+    reportBtn.hidden = !on;
+    logoutBtn.hidden = !on;
+    adminWho.hidden = !on;
+    const em = (u && u.email) || '';
+    adminWho.textContent = on ? 'ผู้ดูแล: ' + em.replace('@' + ADMIN_DOMAIN, '') : '';
+    if (!on) { closeModal(dateModal); closeReport(); }
+  });
+
+  // ----- ลบรายการ (เฉพาะผู้ดูแล) -----
+  async function deleteRecord(r, btn) {
+    if (!auth.currentUser) return;
+    const ok = confirm(
+      `ยืนยันการลบรายการนี้?\n\nห้อง: ${r.classLevel || '-'}\nครูที่ปรึกษา: ${r.teacherName || '-'}\nวันที่: ${thaiDate(r.date)}\n\n` +
+      'รายการและรูปภาพจะถูกลบ และกู้คืนไม่ได้ (ห้องนี้จะส่งข้อมูลของวันนั้นใหม่ได้)'
+    );
+    if (!ok) return;
+    btn.disabled = true;
+    btn.textContent = 'กำลังลบ...';
+    try {
+      await db.collection(COLLECTION).doc(r._id).delete();
+    } catch (err) {
+      console.error(err);
+      alert('ลบไม่สำเร็จ: ' + (err.code === 'permission-denied'
+        ? 'ไม่มีสิทธิ์ลบ (ตรวจสอบว่าอีเมลผู้ดูแลอยู่ใน Firestore Rules และเผยแพร่ Rules ล่าสุดแล้ว)'
+        : err.message));
+      btn.disabled = false;
+      btn.textContent = 'ลบรายการนี้';
+      return;
+    }
+    records = records.filter((x) => x._id !== r._id);
+    render();
+    loadSummary();
+
+    // ลบรูปในโฟลเดอร์ Drive ด้วย (ถ้าไม่สำเร็จ รายการก็ถูกลบไปแล้ว แค่แจ้งเตือน)
+    if (r.imageId && ID_OK.test(r.imageId)) {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        const resp = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'delete', id: r.imageId, idToken: token })
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'unknown');
+      } catch (err) {
+        console.error(err);
+        alert('ลบรายการแล้ว แต่ลบรูปใน Google Drive ไม่สำเร็จ (' + err.message + ')\nสามารถลบรูปในโฟลเดอร์ Drive ด้วยตนเองได้');
+      }
+    }
+  }
+
+  // ----- เข้าสู่ระบบ / ออกจากระบบ -----
+  adminLoginBtn.addEventListener('click', () => {
+    lgMsg.textContent = '';
+    openModal(loginModal);
+    setTimeout(() => lgUser.focus(), 50);
+  });
+  $('lgCancel').addEventListener('click', () => closeModal(loginModal));
+  logoutBtn.addEventListener('click', () => auth.signOut());
+
+  function authError(err) {
+    switch (err && err.code) {
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+      case 'auth/invalid-email':
+        return 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+      case 'auth/too-many-requests': return 'ลองผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่';
+      case 'auth/network-request-failed': return 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ กรุณาลองใหม่';
+      case 'auth/operation-not-allowed': return 'ยังไม่ได้เปิดใช้การเข้าสู่ระบบแบบอีเมล/รหัสผ่านใน Firebase Authentication';
+      default: return 'เข้าสู่ระบบไม่สำเร็จ: ' + ((err && err.message) || 'unknown');
+    }
+  }
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = lgUser.value.trim(), pass = lgPass.value;
+    if (!user || !pass) { lgMsg.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'; return; }
+    const email = user.includes('@') ? user : `${user}@${ADMIN_DOMAIN}`;
+    lgSubmit.disabled = true;
+    lgMsg.textContent = '';
+    try {
+      await auth.signInWithEmailAndPassword(email, pass);
+      loginForm.reset();
+      closeModal(loginModal);
+    } catch (err) {
+      console.error(err);
+      lgMsg.textContent = authError(err);
+    } finally {
+      lgSubmit.disabled = false;
+    }
+  });
+
+  // ----- เลือกวันที่ของรายงาน (ย้อนหลัง/ล่วงหน้าได้ 1 ปี) -----
+  reportBtn.addEventListener('click', () => {
+    const now = new Date();
+    const lo = new Date(now); lo.setFullYear(now.getFullYear() - 1);
+    const hi = new Date(now); hi.setFullYear(now.getFullYear() + 1);
+    rLimit.min = isoOf(lo);
+    rLimit.max = isoOf(hi);
+    rFrom.value = todayStr();
+    rTo.value = todayStr();
+    rHint.textContent = `เลือกได้ตั้งแต่ ${thaiDate(rLimit.min)} ถึง ${thaiDate(rLimit.max)}`;
+    rMsg.textContent = '';
+    rMsg.className = 'modal-msg';
+    openModal(dateModal);
+  });
+  $('rCancel').addEventListener('click', () => closeModal(dateModal));
+
+  rGo.addEventListener('click', async () => {
+    const from = rFrom.value, to = rTo.value;
+    rMsg.className = 'modal-msg';
+    if (!auth.currentUser) { rMsg.textContent = 'กรุณาเข้าสู่ระบบผู้ดูแลก่อน'; return; }
+    if (!from || !to) { rMsg.textContent = 'กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุด'; return; }
+    if (from < rLimit.min || from > rLimit.max || to < rLimit.min || to > rLimit.max) {
+      rMsg.textContent = 'เลือกวันที่ได้เฉพาะย้อนหลังและล่วงหน้าไม่เกิน 1 ปี';
+      return;
+    }
+    if (from > to) { rMsg.textContent = 'วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด'; return; }
+    rGo.disabled = true;
+    rMsg.className = 'modal-msg info';
+    rMsg.textContent = 'กำลังสร้างรายงาน...';
+    try {
+      const snap = await db.collection(COLLECTION).where('date', '>=', from).where('date', '<=', to).get();
+      buildReport(from, to, snap.docs.map((d) => d.data()));
+      closeModal(dateModal);
+      openReport();
+    } catch (err) {
+      console.error(err);
+      rMsg.className = 'modal-msg';
+      rMsg.textContent = 'สร้างรายงานไม่สำเร็จ: ' + err.message;
+    } finally {
+      rGo.disabled = false;
+    }
+  });
+
+  // ----- สร้างรายงาน (ไม่มีรูป) -----
+  // วันเดียว: ตารางสถานะทุกห้องของวันนั้น | หลายวัน: สรุปรายห้อง (จำนวนวันที่ส่ง/ไม่ส่ง และวันที่ไม่ส่ง)
+  let reportName = '';
+  const ymd = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+  const longTh = (iso) => ymd(iso).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const shortTh = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `${d}/${m}/${String(y + 543).slice(-2)}`; };
+  const msOf = (r) => (r.createdAt && r.createdAt.toMillis ? r.createdAt.toMillis() : 0);
+
+  function levelTable(lv, headers, rowFn) {
+    const sec = mk('div', 'rlevel');
+    sec.append(mk('h3', '', 'ชั้นมัธยมศึกษาปีที่ ' + lv));
+    const tbl = mk('table', 'rt');
+    const thead = mk('thead'), hr = mk('tr');
+    headers.forEach((t) => hr.append(mk('th', '', t)));
+    thead.append(hr);
+    const tb = mk('tbody');
+    for (let r = 1; r <= LEVELS[lv]; r++) tb.append(rowFn(`ม.${lv}/${r}`));
+    tbl.append(thead, tb);
+    sec.append(tbl);
+    return sec;
+  }
+
+  function dailyParts(dt, sorted) {
+    const byRoom = new Map(); // ห้องที่ส่งซ้ำ ใช้รายการล่าสุด
+    sorted.forEach((r) => byRoom.set(r.classLevel, r));
+    let total = 0, done = 0;
+    const sections = Object.keys(LEVELS).map((lv) => levelTable(lv, ['ห้อง', 'ครูที่ปรึกษา', 'สถานะ', 'เวลาที่บันทึก'], (key) => {
+      const rec = byRoom.get(key);
+      total++;
+      if (rec) done++;
+      const time = rec && rec.createdAt && rec.createdAt.toDate
+        ? rec.createdAt.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'
+        : '-';
+      const tr = mk('tr');
+      tr.append(
+        mk('td', 'c', key),
+        mk('td', '', rec ? (rec.teacherName || '-') : '-'),
+        mk('td', 'c ' + (rec ? 'st-ok' : 'st-miss'), rec ? 'ส่งแล้ว' : 'ยังไม่ส่ง'),
+        mk('td', 'c', time)
+      );
+      return tr;
+    }));
+    const sum = mk('div', 'rsum', `ส่งแล้ว ${done} ห้อง  |  ยังไม่ส่ง ${total - done} ห้อง  |  รวม ${total} ห้อง`);
+    return [sum, ...sections];
+  }
+
+  function rangeParts(sorted) {
+    // วันที่มีการบันทึกอย่างน้อย 1 ห้อง ถือเป็นวันที่มีการลงคุมแถว (วันหยุดที่ไม่มีใครส่งจะไม่ถูกนับ)
+    const days = [...new Set(sorted.map((r) => r.date))].sort();
+    if (!days.length) return [mk('div', 'rsum', 'ไม่พบข้อมูลการลงคุมแถวในช่วงวันที่ที่เลือก')];
+
+    const perRoom = new Map(); // ห้อง -> { days:Set, teacher }
+    sorted.forEach((r) => {
+      let o = perRoom.get(r.classLevel);
+      if (!o) { o = { days: new Set(), teacher: '' }; perRoom.set(r.classLevel, o); }
+      o.days.add(r.date);
+      if (r.teacherName) o.teacher = r.teacherName; // เรียงตามเวลาแล้ว ค่าสุดท้าย = ล่าสุด
+    });
+
+    let sentTotal = 0;
+    perRoom.forEach((o) => { sentTotal += o.days.size; });
+    const sum = mk('div', 'rsum', `มีการบันทึก ${days.length} วัน  |  ส่งรวม ${sentTotal} ครั้ง (นับเป็นห้อง-วัน)`);
+    const note = mk('p', 'rnoteline', 'วันที่ไม่ส่ง = วันที่มีห้องอื่นส่งข้อมูลแต่ห้องนั้นไม่ได้ส่ง');
+    const sections = Object.keys(LEVELS).map((lv) => levelTable(lv, ['ห้อง', 'ครูที่ปรึกษา', 'ส่ง (วัน)', 'ไม่ส่ง (วัน)', 'วันที่ไม่ส่ง'], (key) => {
+      const o = perRoom.get(key);
+      const missed = days.filter((d) => !o || !o.days.has(d));
+      const tr = mk('tr');
+      tr.append(
+        mk('td', 'c', key),
+        mk('td', '', (o && o.teacher) || '-'),
+        mk('td', 'c st-ok', String(o ? o.days.size : 0)),
+        mk('td', 'c ' + (missed.length ? 'st-miss' : ''), String(missed.length)),
+        mk('td', 'miss-list', missed.length ? missed.map(shortTh).join(', ') : '-')
+      );
+      return tr;
+    }));
+    return [sum, note, ...sections];
+  }
+
+  function buildReport(from, to, docs) {
+    const single = from === to;
+    reportName = 'รายงานการลงคุมแถว_' + (single ? from : `${from}_ถึง_${to}`);
+    const sorted = docs.slice().sort((a, b) => msOf(a) - msOf(b));
+
+    const head = mk('div', 'rhead');
+    head.append(
+      mk('h2', '', 'รายงานการลงคุมแถว'),
+      mk('p', '', 'โรงเรียนสระแก้ว'),
+      mk('p', '', single ? longTh(from) : `ตั้งแต่${longTh(from)} ถึง${longTh(to)}`)
+    );
+    const foot = mk('div', 'rfoot', 'พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' }));
+    rPage.replaceChildren(head, ...(single ? dailyParts(from, sorted) : rangeParts(sorted)), foot);
+  }
+
+  function openReport() {
+    rView.classList.add('open');
+    rView.scrollTop = 0;
+    document.body.classList.add('rv-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeReport() {
+    rView.classList.remove('open');
+    document.body.classList.remove('rv-open');
+    document.body.style.overflow = '';
+  }
+  function printReport() {
+    document.title = reportName; // ชื่อไฟล์ตอนบันทึกเป็น PDF
+    window.print();
+  }
+  window.addEventListener('afterprint', () => { document.title = baseTitle; });
+  $('rPrint').addEventListener('click', printReport);
+  $('rPdf').addEventListener('click', printReport);
+  $('rClose').addEventListener('click', closeReport);
+
+  // คลิกพื้นหลังหรือกด Esc เพื่อปิด pop up
+  [loginModal, dateModal].forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) closeModal(m); }));
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeModal(loginModal);
+    closeModal(dateModal);
+    if (rView.classList.contains('open')) closeReport();
+  });
+
+  load();
+  loadSummary();
+</script>
+</body>
+</html>
